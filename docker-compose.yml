@@ -1,0 +1,13 @@
+version: "3.9"
+
+services:
+  # backend
+  backend:
+    build: ./
+    container_name: main_api
+    restart: always
+    command: ["npm", "run", "prod"]
+    ports:
+      - "9000:9000" #8081: Cổng chạy trên Production
+    env_file:
+      - ./.env

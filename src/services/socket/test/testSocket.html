@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <title></title>
+  </head>
+
+  <body>
+    <button
+      id="development"
+      onclick="connect('development','http://localhost:8081/')"
+    >
+      Connect Socket Dev
+    </button>
+    <button
+      id="production"
+      onclick="connect('production', 'http://apidev.smax.sale/socket.io')"
+    >
+      Connect Socket Product
+    </button>
+    <br />
+    <br />
+    <input type="text" id="accessRoom" placeholder="Tên Room" />
+    <button onclick="joinroom()">Join Room</button>
+    <input type="text" id="outRoom" placeholder="Tên Room" />
+    <button onclick="leaveroom()">Leave Room</button>
+    <input type="text" id="chatRoom" placeholder="Chat" />
+    <button onclick="chatroom()">Chat Room</button>
+    <button onclick="showroom()">Show Room</button>
+    <script
+      src="https://code.jquery.com/jquery-3.3.1.min.js"
+      integrity="sha256-FgpCb/KJQlLNfOu91ta32o/NMZxltwRo8QtmkMRdAu8="
+      crossorigin="anonymous"
+    ></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/2.1.0/socket.io.js"></script>
+
+    <script>
+      let socket, lessonId, userId;
+
+      function connect(mode, address) {
+        console.log("address", address);
+        socket = io(address, {
+          transports: ["websocket", "polling"],
+        });
+        socket.on("SERVER_SEND_DATA", (data) => {
+          console.log("server send data nè:", data);
+        });
+        socket.on("SERVER_SEND_COMMENT_CHILDRENT", (data) => {
+          console.log("SERVER_SEND_COMMENT_CHILDRENT:", data);
+        });
+      }
+      function joinroom() {
+        socket.emit("JOIN_ROOM2", {
+          shop: "5ee756ae376f0801511a1ebe",
+          token:
+            "Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjVlZTc1NjdkMzc2ZjA4MDE1MTFhMWViZCIsImlhdCI6MTU5Mzg3MjA2MH0.l6qy3eSYJ0EeUMU_YHLUTVNjvbduLwGjM8oLG_4ohpQ",
+        });
+      }
+      function leaveroom() {
+        socket.emit("SHOW_ROOM", document.getElementById("outRoom").value);
+      }
+      function chatroom() {
+        let data = {
+          content: document.getElementById("chatRoom").value,
+          user: "5c1073caf26a5000efe6398a",
+          userComment: "5c107400f26a5000efe639a3",
+        };
+        console.log(data);
+        socket.emit("CLIENT_SEND_COMMENT_PARENT_USER", data);
+      }
+      function showroom() {
+        socket.emit("SHOW_ROOM", {});
+        // let data = {
+        //   user: "5c1073caf26a5000efe6398a",
+        //   userComment: "5c107400f26a5000efe639a3",
+        //   commentUser: "5c204507974fcc00410368a9",
+        //   content: document.getElementById("chatRoom").value,
+        // };
+        // console.log(data);
+        // socket.emit("CLIENT_SEND_COMMENT_CHILDREN_USER", data);
+      }
+    </script>
+  </body>
+</html>
