@@ -1,14 +1,8 @@
 import { removeServiceCache, setServiceCache } from "../../../services/cache";
 import { notFound, response } from "../../../services/response";
-import { cleanObjectBodymen, retry } from "../../../utils/common";
-import {
-  applyPromotions,
-  buildCartItems,
-  getCustomer,
-  getInfoLocation,
-  handleCouponChanges,
-} from "./helper";
-import { ORDER_STATUS, ORDER_STATUS_CONFIG, ORDER_TYPE } from "./constants";
+import { retry } from "../../../utils/common";
+import { handleCouponChanges, handleOrderData } from "./helper";
+import { ORDER_STATUS, ORDER_STATUS_CONFIG } from "./constants";
 import Order from "../../models/order";
 import { NotFoundError } from "../../../services/response/errors";
 import PromotionService from "../../../services/axios/promotion";
@@ -22,69 +16,33 @@ export const create = async (req, res, next) => {
 
   new Promise(async (resolve, reject) => {
     try {
-      cleanObjectBodymen(body);
+      await handleOrderData({ body, biz });
 
-      // Check customer. Thêm mới nếu chưa có
-      const customer = await getCustomer({
-        body: body.customer || {},
-        bizId: biz.id,
-      });
-      if (customer) {
-        body.customer.id = customer?.id;
-        await getInfoLocation({ body: body.customer, biz });
-      }
-
-      // Check cart và cartTotalAmount
-      body.cartTotalAmount = 0;
-      try {
-        await buildCartItems(body, biz);
-      } catch (err) {
-        return reject(err);
-      }
-      body.totalAmount = body.cartTotalAmount;
-
-      // Check coupon
-      try {
-        await applyPromotions(body, biz);
-      } catch (err) {
-        return reject(err);
-      }
-      body.note += (body.coupons || []).map((coupon) => coupon.note).join(", ");
-
-      // Tính toán các khoản phí
-      const totalDiscounts = (body.coupons || []).reduce(
-        (sum, coupon) => sum + (coupon.totalDiscount || 0),
-        0
-      );
-      body.totalAmount -= totalDiscounts;
-      body.totalAmount = Math.max(body.totalAmount, 0);
-      body.totalAmount += body.surcharge || 0;
-      if (body?.orderType === ORDER_TYPE.DELIVERY) {
-        body.totalAmount += body.deliveryFee || 0;
-      }
-
-      // Tạo code
-      await retry(async () => {
-        const lastOrder = await Order.findOne({ bizId: biz.id }).sort({
-          nid: -1,
-        });
-        body.nid = (lastOrder?.nid || 0) + 1;
-        body.code = "DH" + body.nid.toString().padStart(5, "0");
-        body.uniqueCode = `${biz.id}_${body.code}`;
-      });
-
-      // Tạo đơn hàng
       return resolve(
-        await Order.create({
-          ...body,
-          bizId: biz.id,
-          author: viewer.id,
-          updatedBy: {
-            id: viewer.id,
-            name: viewer.name,
-            email: viewer.email,
-            picture: viewer.picture,
-          },
+        await retry(async () => {
+          // Tạo code
+          const lastOrder = await Order.findOne({ bizId: biz.id }).sort({
+            nid: -1,
+          });
+
+          const nid = (lastOrder?.nid || 0) + 1;
+          const code = "DH" + nid.toString().padStart(5, "0");
+          const uniqueCode = `${biz.id}_${code}`;
+
+          return await Order.create({
+            ...body,
+            nid,
+            code,
+            uniqueCode,
+            bizId: biz.id,
+            author: viewer.id,
+            updatedBy: {
+              id: viewer.id,
+              name: viewer.name,
+              email: viewer.email,
+              picture: viewer.picture,
+            },
+          });
         })
       );
     } catch (error) {
@@ -142,8 +100,6 @@ export const update = async (req, res, next) => {
 
       oldOrder = JSON.parse(JSON.stringify(order.view(true)));
 
-      cleanObjectBodymen(body);
-
       // Check trạng thái đơn hàng
       const statusConfig = ORDER_STATUS_CONFIG[order.status] || {};
       if (!statusConfig.next.includes(body.status)) {
@@ -172,44 +128,7 @@ export const update = async (req, res, next) => {
         );
       }
 
-      // Check customer. Thêm mới nếu chưa có
-      const customer = await getCustomer({
-        body: body.customer || {},
-        bizId: biz.id,
-      });
-      if (customer) {
-        body.customer.id = customer?.id;
-        await getInfoLocation({ body: body.customer, biz });
-      }
-
-      // Check cart và cartTotalAmount
-      body.cartTotalAmount = 0;
-      try {
-        await buildCartItems(body, biz);
-      } catch (err) {
-        return reject(err);
-      }
-      body.totalAmount = body.cartTotalAmount;
-
-      // Check coupon
-      try {
-        await applyPromotions(body, biz, oldOrder);
-      } catch (err) {
-        return reject(err);
-      }
-      body.note += (body.coupons || []).map((coupon) => coupon.note).join(", ");
-
-      // Tính toán các khoản phí
-      const totalDiscounts = (body.coupons || []).reduce(
-        (sum, coupon) => sum + (coupon.totalDiscount || 0),
-        0
-      );
-      body.totalAmount -= totalDiscounts;
-      body.totalAmount = Math.max(body.totalAmount, 0);
-      body.totalAmount += body.surcharge || 0;
-      if (body?.orderType === ORDER_TYPE.DELIVERY) {
-        body.totalAmount += body.deliveryFee || 0;
-      }
+      await handleOrderData({ body, biz, oldOrder });
 
       // Tạo đơn hàng
       return resolve(

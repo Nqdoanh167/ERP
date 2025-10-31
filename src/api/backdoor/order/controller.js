@@ -8,6 +8,7 @@ import {
   getCustomer,
   getInfoLocation,
   handleCouponChanges,
+  handleOrderData,
 } from "../../biz/order/helper";
 import Order, { orderCreateModel } from "../../models/order";
 import Biz from "../../../services/axios/biz";
@@ -179,68 +180,22 @@ export const addOne = async (bodyParams) => {
 
     cleanObjectBodymen(body);
 
-    // Check customer. Thêm mới nếu chưa có
-    const customer = await getCustomer({
-      body: body.customer || {},
-      bizId: biz.id,
-    });
-    if (customer) {
-      body.customer.id = customer?.id;
-      await getInfoLocation({ body: body.customer, biz });
-    }
+    await handleOrderData({ body, biz });
 
-    // Check cart và cartTotalAmount
-    body.cartTotalAmount = 0;
-    try {
-      await buildCartItems(body, biz);
-    } catch (err) {
-      return rejectBackdoor({
-        bodyParams,
-        message: err.message,
-        status: err.status || 500,
-        statusText: "BAD_REQUEST",
-      });
-    }
-    body.totalAmount = body.cartTotalAmount;
-
-    // Check coupon
-    try {
-      await applyPromotions(body, biz);
-    } catch (err) {
-      return rejectBackdoor({
-        bodyParams,
-        message: err.message,
-        status: err.status || 500,
-        statusText: "BAD_REQUEST",
-      });
-    }
-    body.note += (body.coupons || []).map((coupon) => coupon.note).join(", ");
-
-    // Tính toán các khoản phí
-    const totalDiscounts = (body.coupons || []).reduce(
-      (sum, coupon) => sum + (coupon.totalDiscount || 0),
-      0
-    );
-    body.totalAmount -= totalDiscounts;
-    body.totalAmount = Math.max(body.totalAmount, 0);
-    body.totalAmount += body.surcharge || 0;
-    if (body?.orderType === ORDER_TYPE.DELIVERY) {
-      body.totalAmount += body.deliveryFee || 0;
-    }
-    // Tạo code
-    await retry(async () => {
+    const newOrder = await retry(async () => {
+      // Tạo code
       const lastOrder = await Order.findOne({ bizId: biz.id }).sort({
         nid: -1,
       });
       body.nid = (lastOrder?.nid || 0) + 1;
       body.code = "DH" + body.nid.toString().padStart(5, "0");
       body.uniqueCode = `${biz.id}_${body.code}`;
-    });
 
-    const newOrder = await Order.create({
-      ...body,
-      bizId: biz.id,
-      author: body.updatedBy?.id,
+      return await Order.create({
+        ...body,
+        bizId: biz.id,
+        author: body.updatedBy?.id,
+      });
     });
 
     result.data = newOrder.view(true);
@@ -357,54 +312,7 @@ export const updateOne = async (bodyParams) => {
       return result;
     }
 
-    // Check customer. Thêm mới nếu chưa có
-    const customer = await getCustomer({
-      body: body.customer || {},
-      bizId: biz.id,
-    });
-    if (customer) {
-      body.customer.id = customer?.id;
-      await getInfoLocation({ body: body.customer, biz });
-    }
-
-    // Check cart và cartTotalAmount
-    body.cartTotalAmount = 0;
-    try {
-      await buildCartItems(body, biz);
-    } catch (err) {
-      return rejectBackdoor({
-        bodyParams,
-        message: err.message,
-        status: err.status || 500,
-        statusText: "BAD_REQUEST",
-      });
-    }
-    body.totalAmount = body.cartTotalAmount;
-
-    // Check coupon
-    try {
-      await applyPromotions(body, biz, oldOrder);
-    } catch (err) {
-      return rejectBackdoor({
-        bodyParams,
-        message: err.message,
-        status: err.status || 500,
-        statusText: "BAD_REQUEST",
-      });
-    }
-    body.note += (body.coupons || []).map((coupon) => coupon.note).join(", ");
-
-    // Tính toán các khoản phí
-    const totalDiscounts = (body.coupons || []).reduce(
-      (sum, coupon) => sum + (coupon.totalDiscount || 0),
-      0
-    );
-    body.totalAmount -= totalDiscounts;
-    body.totalAmount = Math.max(body.totalAmount, 0);
-    body.totalAmount += body.surcharge || 0;
-    if (body?.orderType === ORDER_TYPE.DELIVERY) {
-      body.totalAmount += body.deliveryFee || 0;
-    }
+    await handleOrderData({ body, biz, oldOrder });
 
     await Object.assign(order, {
       ...body,

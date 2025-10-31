@@ -2,8 +2,9 @@ import Customer from "../../../services/axios/customer";
 import Location from "../../../services/axios/location";
 import Product from "../../../services/axios/product";
 import { isEmptyArray } from "../../../utils/type-check";
-import { PROMOTION_TYPE } from "./constants";
+import { ORDER_TYPE, PROMOTION_TYPE } from "./constants";
 import PromotionService from "../../../services/axios/promotion";
+import { cleanObjectBodymen } from "../../../utils/common";
 
 export const getCustomer = async ({ body = {}, bizId }) => {
   let customer = null;
@@ -15,27 +16,26 @@ export const getCustomer = async ({ body = {}, bizId }) => {
     if (!customer && (body.phone || body.name || body.email)) {
       if (!body.name) body.name = body.phone;
 
-      if (body.phone) {
-        const queryCustomer = { bizId };
-        const bodyCustomer = { ...body };
+      const queryCustomer = { bizId };
+      const bodyCustomer = { ...body };
 
-        if (body.phone) queryCustomer.phone = body.phone;
-        // email k đúng => bỏ
-        if (body.email) {
-          if (!String(body.email).match(/^\S+@\S+\.\S+$/)) delete body.email;
+      if (body.phone) queryCustomer.phone = body.phone;
+      // email k đúng => bỏ
+      if (body.email) {
+        if (!String(body.email).match(/^\S+@\S+\.\S+$/)) delete body.email;
 
-          if (body.email) queryCustomer.email = body.email;
-        }
-
-        // Xóa các dữ liệu có giá trị null để tránh bị update vào customer;
-        Object.keys(bodyCustomer).forEach((f) => {
-          if (bodyCustomer[f] === null) delete bodyCustomer[f];
-        });
-
-        customer = await Customer.findOne_addOne(queryCustomer, bodyCustomer);
-      } else {
-        customer = await Customer.addOne({ ...body, bizId });
+        if (body.email) queryCustomer.email = body.email;
       }
+
+      // Xóa các dữ liệu có giá trị null để tránh bị update vào customer;
+      Object.keys(bodyCustomer).forEach((f) => {
+        if (bodyCustomer[f] === null) delete bodyCustomer[f];
+      });
+
+      customer = await Customer.findOne_addOne(queryCustomer, {
+        ...bodyCustomer,
+        name: bodyCustomer.name || bodyCustomer.phone,
+      });
     }
   } catch (error) {
     console.log("getCustomer", error);
@@ -451,4 +451,45 @@ export const handleCouponChanges = async ({
   } catch (error) {
     console.error("[handleCouponChanges] Unexpected error:", error);
   }
+};
+
+/**
+ * Xử lý dữ liệu đơn hàng
+ */
+export const handleOrderData = async ({ body, biz, oldOrder = null }) => {
+  cleanObjectBodymen(body);
+
+  // 1️⃣ Xử lý khách hàng
+  const customer = await getCustomer({
+    body: body.customer || {},
+    bizId: biz.id,
+  });
+  if (customer) {
+    body.customer.id = customer?.id;
+    await getInfoLocation({ body: body.customer, biz });
+  }
+
+  // 2️⃣ Xử lý giỏ hàng
+  body.cartTotalAmount = 0;
+  await buildCartItems(body, biz);
+  body.totalAmount = body.cartTotalAmount;
+
+  // 3️⃣ Xử lý mã khuyến mãi
+  await applyPromotions(body, biz, oldOrder);
+  body.note += (body.coupons || []).map((coupon) => coupon.note).join(", ");
+
+  // 4️⃣ Tính toán tổng tiền & giảm giá
+  body.amountCoupon = (body.coupons || []).reduce(
+    (sum, coupon) => sum + (coupon.totalDiscount || 0),
+    0
+  );
+  body.totalDiscount = body.amountCoupon + (body.amountDiscount || 0);
+  body.totalAmount = Math.max(body.totalAmount - body.totalDiscount, 0);
+  body.totalAmount += body.surcharge || 0;
+
+  if (body?.orderType === ORDER_TYPE.DELIVERY) {
+    body.totalAmount += body.deliveryFee || 0;
+  }
+
+  return body;
 };
