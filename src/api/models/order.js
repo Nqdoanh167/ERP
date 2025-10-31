@@ -131,6 +131,9 @@ const orderSchema = new Schema(
     deliveryFee: { type: Number, default: 0, min: 0 }, // Phí vận chuyển
     surcharge: { type: Number, default: 0, min: 0 }, // Phụ thu
     totalAmount: { type: Number, default: 0, min: 0 }, // Thành tiền
+    amountCoupon: { type: Number, default: 0, min: 0 }, // Tổng tiền giảm từ coupon
+    amountDiscount: { type: Number, default: 0, min: 0 }, // Tổng tiền giảm tự nhập
+    totalDiscount: { type: Number, default: 0, min: 0 }, // Tổng tiền giảm giá
     note: String,
   },
   {
@@ -195,6 +198,9 @@ orderSchema.methods = {
       deliveryFee: this.deliveryFee,
       surcharge: this.surcharge,
       totalAmount: this.totalAmount,
+      amountCoupon: this.amountCoupon,
+      amountDiscount: this.amountDiscount,
+      totalDiscount: this.totalDiscount,
       note: this.note,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
@@ -227,6 +233,9 @@ export const orderCreateModel = {
   deliveryFee: Number,
   surcharge: Number,
   totalAmount: Number,
+  amountCoupon: Number,
+  amountDiscount: Number,
+  totalDiscount: Number,
   note: model.schema.tree.note,
 };
 
@@ -245,6 +254,9 @@ export const orderUpdateModel = {
   deliveryFee: Number,
   surcharge: Number,
   totalAmount: Number,
+  amountCoupon: Number,
+  amountDiscount: Number,
+  totalDiscount: Number,
   note: model.schema.tree.note,
 };
 
