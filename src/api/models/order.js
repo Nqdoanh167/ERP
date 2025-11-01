@@ -49,6 +49,7 @@ const orderSchema = new Schema(
           price: Number,
           branchId: String,
         },
+        realPrice: { type: Number, default: 0 }, // Giá thực tế sau khi chọn thuộc tính
         toppings: [
           {
             id: String, // ID Nhóm thuộc tính
@@ -113,6 +114,7 @@ const orderSchema = new Schema(
         promotionId: String,
         code: String,
         promotionType: String,
+        promotionName: String,
         promotionSetting: {
           discount: Number,
           percent: Number,
@@ -177,6 +179,7 @@ orderSchema.methods = {
         priceBranch: item.priceBranch,
         toppings: item.toppings,
         isGift: item.isGift,
+        realPrice: item.realPrice,
       })),
       branch: this.branch,
       shipment: this.shipment,
@@ -189,6 +192,7 @@ orderSchema.methods = {
         promotionId: coupon.promotionId,
         code: coupon.code,
         promotionType: coupon.promotionType,
+        promotionName: coupon.promotionName,
         promotionSetting: coupon.promotionSetting,
         totalDiscount: coupon.totalDiscount,
         note: coupon.note,
@@ -220,7 +224,6 @@ const model = mongoose.model("Order", orderSchema);
 export const schema = model.schema;
 
 export const orderCreateModel = {
-  bizId: model.schema.tree.bizId,
   status: String,
   customer: model.schema.tree.customer,
   cart: model.schema.tree.cart,
@@ -240,7 +243,6 @@ export const orderCreateModel = {
 };
 
 export const orderUpdateModel = {
-  bizId: model.schema.tree.bizId,
   status: String,
   code: model.schema.tree.code,
   customer: model.schema.tree.customer,

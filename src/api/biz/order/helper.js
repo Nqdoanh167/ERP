@@ -271,6 +271,7 @@ export async function applyPromotions(body, biz, oldOrder = null) {
     coupon.promotionId = promotionId.id;
     coupon.code = couponData.code;
     coupon.promotionType = promotionType;
+    coupon.promotionName = promotionId?.name;
     coupon.promotionSetting = {
       discount: 0,
       percent: 0,
@@ -290,7 +291,7 @@ export async function applyPromotions(body, biz, oldOrder = null) {
         let toppingIds = [];
         if (conditionType === "amount") {
           for (const item of items) {
-            if (body.totalAmount >= item?.conditionValue) {
+            if (body.cartTotalAmount >= item?.conditionValue) {
               itemIds = [...itemIds, ...item.productIds];
               toppingIds = [...toppingIds, ...item.toppingIds];
             }
@@ -389,7 +390,9 @@ export async function applyPromotions(body, biz, oldOrder = null) {
         const percent = promotionSetting?.percent || 0;
         const maxPrice = promotionSetting?.maxPrice || 0;
         if (percent > 0) {
-          coupon.totalDiscount = Math.floor((body.totalAmount * percent) / 100);
+          coupon.totalDiscount = Math.floor(
+            (body.cartTotalAmount * percent) / 100
+          );
           if (coupon.totalDiscount > maxPrice) {
             coupon.totalDiscount = maxPrice;
           }
