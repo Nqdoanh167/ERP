@@ -39,7 +39,6 @@ const orderSchema = new Schema(
         product: String,
         sku: String,
         name: String,
-        price: Number,
         picture: String,
         note: String,
         quantity: { type: Number, default: 1 },
@@ -49,7 +48,6 @@ const orderSchema = new Schema(
           price: Number,
           branchId: String,
         },
-        realPrice: { type: Number, default: 0 }, // Giá thực tế sau khi chọn thuộc tính
         toppings: [
           {
             id: String, // ID Nhóm thuộc tính
@@ -79,6 +77,18 @@ const orderSchema = new Schema(
           },
         ],
         isGift: { type: Boolean, default: false },
+        originalPrice: { type: Number, default: 0 }, // Giá gốc
+        price: { type: Number, default: 0 }, // Giá bán hiển thị (cả topping)
+        realPrice: { type: Number, default: 0 }, // Giá bán thực tế (đã trừ giảm giá)
+        amountDiscount: Number, // Tổng tiền giảm giá cho món này
+        amountDiscountNumber: Number, // Số tiền giảm giá cho món này
+        amountDiscountType: {
+          // Loại giảm giá cho món này
+          type: String,
+          enum: ["absolute", "percent"],
+          default: "absolute",
+        },
+        amount: Number, // Thành tiền = realPrice * quantity
       },
     ],
     branch: {
@@ -119,6 +129,8 @@ const orderSchema = new Schema(
           discount: Number,
           percent: Number,
           maxPrice: Number,
+          giveProducts: [String],
+          giveToppings: [String],
         },
         totalDiscount: { type: Number, default: 0, min: 0 }, // Số tiền giảm giá cho đơn hàng của voucher này tính từ promotionType + promotionSetting
         note: String,
@@ -171,7 +183,6 @@ orderSchema.methods = {
         product: item.product,
         sku: item.sku,
         name: item.name,
-        price: item.price,
         picture: item.picture,
         note: item.note,
         quantity: item.quantity,
@@ -179,7 +190,13 @@ orderSchema.methods = {
         priceBranch: item.priceBranch,
         toppings: item.toppings,
         isGift: item.isGift,
+        originalPrice: item.originalPrice,
+        price: item.price,
         realPrice: item.realPrice,
+        amountDiscount: item.amountDiscount,
+        amountDiscountNumber: item.amountDiscountNumber,
+        amountDiscountType: item.amountDiscountType,
+        amount: item.amount,
       })),
       branch: this.branch,
       shipment: this.shipment,

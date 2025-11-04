@@ -111,7 +111,6 @@ export const getInfoLocation = async ({ body = {}, biz }) => {
  Cập nhật cartTotalAmount
 */
 export async function buildCartItems(body, biz) {
-  body.cartTotalAmount = 0;
   body.cart = Array.isArray(body.cart)
     ? body.cart.filter((i) => !i.isGift)
     : [];
@@ -149,17 +148,22 @@ export async function buildCartItems(body, biz) {
       product: item.product,
       note: item.note,
       quantity: item.quantity || 1,
-      realPrice: 0,
       toppings: Array.isArray(item.toppings) ? item.toppings : [],
+      originalPrice: 0,
+      price: 0,
+      realPrice: 0,
+      amountDiscount: 0,
+      amountDiscountNumber: item.amountDiscountNumber || 0,
+      amountDiscountType: item.amountDiscountType || "absolute",
+      amount: 0,
     };
 
     if (product) {
       cartItem.name = product.name;
       cartItem.sku = item.sku;
-      cartItem.price = product.price || 0;
       cartItem.picture = product.picture;
       cartItem.categoryIds = product.categoryIds || [];
-      cartItem.realPrice = product.price || 0;
+      cartItem.originalPrice = product.price || 0;
 
       // Nếu có giá chi nhánh
       const priceBranch = (product.priceBranches || [])?.find(
@@ -167,23 +171,38 @@ export async function buildCartItems(body, biz) {
       );
       if (priceBranch) {
         cartItem.priceBranch = priceBranch;
-        cartItem.realPrice = priceBranch.price || 0;
+        cartItem.originalPrice = priceBranch.price || 0;
       }
     }
 
     // Tính giá toppings
     let priceToppings = 0;
     cartItem.toppings.forEach((group) => {
+      group.values.forEach((v) => {
+        const toppingValue = {
+          id: v.id,
+          name: v.name,
+          originalPrice: v.price || 0,
+          price: v.price || 0,
+          discount: 0,
+          isDefault: v.isDefault || false,
+          priceBranch: null,
+        };
+
+        // Nếu có giá chi nhánh
+        const priceBranch = (v.priceBranches || [])?.find(
+          (pb) => pb.branchId === body.branch?.id
+        );
+
+        if (priceBranch) {
+          toppingValue.priceBranch = priceBranch;
+          toppingValue.originalPrice = priceBranch.price || 0;
+          toppingValue.price = priceBranch.price || 0;
+        }
+      });
       priceToppings += group.values
         .filter((v) => group.answers.includes(v.id))
         .reduce((sum, v) => {
-          // Nếu có giá chi nhánh
-          const priceBranch = (v.priceBranches || [])?.find(
-            (pb) => pb.branchId === body.branch?.id
-          );
-          if (priceBranch) {
-            return sum + (priceBranch.price || 0);
-          }
           return sum + (v.price || 0);
         }, 0);
 
@@ -196,11 +215,28 @@ export async function buildCartItems(body, biz) {
         .map((v) => v.name);
     });
 
-    cartItem.amount = cartItem.realPrice * cartItem.quantity + priceToppings;
-    body.cartTotalAmount += cartItem.amount || 0;
+    cartItem.price = cartItem.originalPrice + priceToppings;
 
+    // Tính tiền sản phẩm
+    if (cartItem.amountDiscountType === "absolute") {
+      cartItem.amountDiscount = cartItem.amountDiscountNumber;
+    } else if (cartItem.amountDiscountType === "percent") {
+      cartItem.amountDiscount = Math.floor(
+        (cartItem.price * cartItem.amountDiscountNumber) / 100
+      );
+    }
+
+    cartItem.realPrice = Math.max(cartItem.price - cartItem.amountDiscount, 0);
+    cartItem.amount = cartItem.realPrice * cartItem.quantity;
     return cartItem;
   });
+
+  body.cartTotalAmount = body.cart.reduce(
+    (sum, item) => sum + (item.amount || 0),
+    0
+  );
+
+  return body;
 }
 
 export async function applyPromotions(body, biz, oldOrder = null) {
@@ -276,24 +312,37 @@ export async function applyPromotions(body, biz, oldOrder = null) {
       discount: 0,
       percent: 0,
       maxPrice: 0,
+      giveProducts: [],
+      giveToppings: [],
     };
     coupon.totalDiscount = 0;
     coupon.note = "";
 
     switch (promotionType) {
       case PROMOTION_TYPE.TOPPING_BONUS:
-        // TODO: xử lý khuyến mãi tặng topping
+        const toppingIds = Array.from(
+          new Set(promotionSetting?.toppingIds || [])
+        );
+        if (toppingIds.length) {
+          const toppings = await Product.findManyTopping({
+            bizId: biz.id,
+            ids: toppingIds,
+          });
+
+          toppings.filter(Boolean).map((topping) => {
+            coupon.note += `\nTặng topping: ${topping.name}.`;
+            coupon.promotionSetting.giveToppings.push(topping.id);
+          });
+        }
         break;
 
       case PROMOTION_TYPE.PRODUCT_BONUS: {
         const { conditionType, items = [] } = promotionSetting || {};
         let itemIds = [];
-        let toppingIds = [];
         if (conditionType === "amount") {
           for (const item of items) {
             if (body.cartTotalAmount >= item?.conditionValue) {
               itemIds = [...itemIds, ...item.productIds];
-              toppingIds = [...toppingIds, ...item.toppingIds];
             }
           }
         } else if (conditionType === "quantity") {
@@ -301,7 +350,6 @@ export async function applyPromotions(body, biz, oldOrder = null) {
           for (const item of items) {
             if (totalQuantity >= item?.conditionValue) {
               itemIds = [...itemIds, ...item.productIds];
-              toppingIds = [...toppingIds, ...item.toppingIds];
             }
           }
         }
@@ -322,6 +370,7 @@ export async function applyPromotions(body, biz, oldOrder = null) {
             }
 
             coupon.note += `\nTặng sản phẩm: ${product.name}.`;
+            coupon.promotionSetting.giveProducts.push(product.id);
             body.cart.push({
               product: product.id,
               name: product.name,
@@ -347,7 +396,20 @@ export async function applyPromotions(body, biz, oldOrder = null) {
           if (index === -1) continue;
 
           if (setting.type === "bonus_topping") {
-            // TODO: thêm topping tặng
+            const toppingIds = Array.from(
+              new Set(setting.items || [].map((i) => i))
+            );
+            if (toppingIds.length) {
+              const toppings = await Product.findManyTopping({
+                bizId: biz.id,
+                ids: toppingIds,
+              });
+
+              toppings.filter(Boolean).map((topping) => {
+                coupon.note += `\nTặng topping: ${topping.name}.`;
+                coupon.promotionSetting.giveToppings.push(topping.id);
+              });
+            }
           } else if (setting.type === "bonus_product") {
             const productIds = Array.from(
               new Set(setting.items || [].map((i) => i))
@@ -367,6 +429,7 @@ export async function applyPromotions(body, biz, oldOrder = null) {
                 }
 
                 coupon.note += `\nTặng sản phẩm: ${product.name}.`;
+                coupon.promotionSetting.giveProducts.push(product.id);
                 body.cart.push({
                   product: product.id,
                   name: product.name,
@@ -472,10 +535,15 @@ export const handleOrderData = async ({ body, biz, oldOrder = null }) => {
     await getInfoLocation({ body: body.customer, biz });
   }
 
-  // 2️⃣ Xử lý giỏ hàng
+  //init value
   body.cartTotalAmount = 0;
+  body.totalAmount = 0;
+  body.amountCoupon = 0;
+  body.totalDiscount = 0;
+  body.surcharge = body.surcharge || 0;
+
+  // 2️⃣ Xử lý giỏ hàng
   await buildCartItems(body, biz);
-  body.totalAmount = body.cartTotalAmount;
 
   // 3️⃣ Xử lý mã khuyến mãi
   await applyPromotions(body, biz, oldOrder);
@@ -487,8 +555,10 @@ export const handleOrderData = async ({ body, biz, oldOrder = null }) => {
     0
   );
   body.totalDiscount = body.amountCoupon + (body.amountDiscount || 0);
-  body.totalAmount = Math.max(body.totalAmount - body.totalDiscount, 0);
-  body.totalAmount += body.surcharge || 0;
+  body.totalAmount = Math.max(
+    body.cartTotalAmount - body.totalDiscount + body.surcharge,
+    0
+  );
 
   if (body?.orderType === ORDER_TYPE.DELIVERY) {
     body.totalAmount += body.deliveryFee || 0;

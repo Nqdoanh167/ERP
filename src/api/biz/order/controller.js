@@ -189,10 +189,16 @@ export const index = async (req, res, next) => {
       $in: Object.values(ORDER_STATUS),
     };
   }
-  Order.find(query, select, cursor)
-    .then((orders) => ({
-      data: orders.map((order) => order.view()),
-    }))
+  Order.countDocuments(query)
+    .then((total) => {
+      if (total === 0) {
+        return { data: [], total };
+      }
+      return Order.find(query, select, cursor).then((orders) => ({
+        total,
+        data: orders.map((order) => order.view()),
+      }));
+    })
     .then((data) => response(res, data))
     .then((data) => setServiceCache({ req, model: "order", data }))
     .catch(next);
