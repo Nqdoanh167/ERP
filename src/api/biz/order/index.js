@@ -10,6 +10,7 @@ import {
   update,
   updateStatus,
 } from "./controller";
+import { serviceCache } from "../../../services/cache";
 
 const router = new Router();
 
@@ -32,6 +33,7 @@ router.get(
     createdAt_gte: { type: Date, paths: ["createdAt"], operator: "gte" },
     createdAt_lte: { type: Date, paths: ["createdAt"], operator: "lte" },
   }),
+  serviceCache({ model: "order" }),
   index
 );
 
