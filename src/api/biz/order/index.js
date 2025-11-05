@@ -15,7 +15,11 @@ import { serviceCache } from "../../../services/cache";
 const router = new Router();
 
 router.post("/", body(orderCreateModel), create);
-router.post("/update-status", body({ status: String }), updateStatus);
+router.post(
+  "/update-status",
+  body({ status: String, orderId: String }),
+  updateStatus
+);
 
 router.put("/:id", body(orderUpdateModel), update);
 
