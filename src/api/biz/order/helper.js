@@ -117,6 +117,17 @@ export async function buildCartItems(body, biz) {
 
   if (isEmptyArray(body.cart)) return;
 
+  // Gộp các sản phẩm giống nhau trong cart
+  const cartMap = new Map();
+  body.cart.forEach((item) => {
+    if (cartMap.has(item.product)) {
+      cartMap.get(item.product).quantity += item.quantity || 1;
+    } else {
+      cartMap.set(item.product, { ...item, quantity: item.quantity || 1 });
+    }
+  });
+  body.cart = Array.from(cartMap.values());
+
   // Lấy danh sách productIds duy nhất trong cart
   const productIds = Array.from(
     new Set(
@@ -320,9 +331,7 @@ export async function applyPromotions(body, biz, oldOrder = null) {
 
     switch (promotionType) {
       case PROMOTION_TYPE.TOPPING_BONUS:
-        const toppingIds = Array.from(
-          new Set(promotionSetting?.toppingIds || [])
-        );
+        const toppingIds = Array.from(new Set(promotionSetting || []));
         if (toppingIds.length) {
           const toppings = await Product.findManyTopping({
             bizId: biz.id,
@@ -342,14 +351,14 @@ export async function applyPromotions(body, biz, oldOrder = null) {
         if (conditionType === "amount") {
           for (const item of items) {
             if (body.cartTotalAmount >= item?.conditionValue) {
-              itemIds = [...itemIds, ...item.productIds];
+              itemIds.push(item.productId);
             }
           }
         } else if (conditionType === "quantity") {
           const totalQuantity = body.cart.filter((item) => !item.isGift).length;
           for (const item of items) {
             if (totalQuantity >= item?.conditionValue) {
-              itemIds = [...itemIds, ...item.productIds];
+              itemIds.push(item.productId);
             }
           }
         }

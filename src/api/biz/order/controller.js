@@ -233,14 +233,13 @@ export const updateStatus = async (req, res, next) => {
   const {
     biz,
     bodymen: { body },
-    params,
   } = req;
 
   new Promise(async (resolve, reject) => {
     try {
       const order = await Order.findOne({
         bizId: biz.id,
-        _id: params.id,
+        _id: body.orderId,
       });
 
       if (!order) {
