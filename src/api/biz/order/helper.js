@@ -558,6 +558,61 @@ export const handleOrderData = async ({ body, biz, oldOrder = null }) => {
   await applyPromotions(body, biz, oldOrder);
   body.note += (body.coupons || []).map((coupon) => coupon.note).join(", ");
 
+  // Nếu coupon có topping thì check xem cart có chứa topping đó không, nếu có thì => tính lại giá trên từng sản phẩm
+  for (const coupon of body.coupons || []) {
+    if (
+      [PROMOTION_TYPE.TOPPING_BONUS, PROMOTION_TYPE.BUY_X_BONUS_Y].includes(
+        coupon.promotionType
+      ) &&
+      !isEmptyArray(coupon.promotionSetting.giveToppings)
+    ) {
+      body.cart
+        .filter((i) => !i.isGift)
+        .forEach((cartItem) => {
+          let priceToppings = 0;
+          cartItem.toppings.forEach((group) => {
+            if (coupon.promotionSetting.giveToppings.includes(group.id)) {
+              group.values.forEach((v) => {
+                v.price = 0;
+              });
+
+              // Gán thông tin coupon
+              group.couponId = coupon.id;
+              group.couponName = coupon.promotionName;
+            }
+
+            priceToppings += group.values
+              .filter((v) => group.answers.includes(v.id))
+              .reduce((sum, v) => {
+                return sum + (v.price || 0);
+              }, 0);
+
+            cartItem.price = cartItem.originalPrice + priceToppings;
+            if (cartItem.amountDiscountType === "absolute") {
+              cartItem.amountDiscount = cartItem.amountDiscountNumber;
+            } else if (cartItem.amountDiscountType === "percent") {
+              cartItem.amountDiscount = Math.floor(
+                (cartItem.price * cartItem.amountDiscountNumber) / 100
+              );
+            }
+
+            cartItem.realPrice = Math.max(
+              cartItem.price - cartItem.amountDiscount,
+              0
+            );
+            cartItem.amount = cartItem.realPrice * cartItem.quantity;
+          });
+        });
+
+      // console.log("---------------------", JSON.stringify(body.cart, null, 2));
+
+      body.cartTotalAmount = body.cart.reduce(
+        (sum, item) => sum + (item.amount || 0),
+        0
+      );
+    }
+  }
+
   // 4️⃣ Tính toán tổng tiền & giảm giá
   body.amountCoupon = (body.coupons || []).reduce(
     (sum, coupon) => sum + (coupon.totalDiscount || 0),

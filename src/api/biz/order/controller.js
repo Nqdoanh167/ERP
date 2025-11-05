@@ -232,6 +232,7 @@ export const destroy = async (req, res, next) => {
 export const updateStatus = async (req, res, next) => {
   const {
     biz,
+    viewer,
     bodymen: { body },
   } = req;
 
