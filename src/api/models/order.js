@@ -74,6 +74,8 @@ const orderSchema = new Schema(
                 },
               },
             ],
+            couponId: String, // ID voucher nếu có
+            couponName: String, // Tên voucher nếu có
           },
         ],
         isGift: { type: Boolean, default: false },
