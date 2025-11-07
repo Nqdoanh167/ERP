@@ -45,12 +45,10 @@ const updateOne = async (query, data) => {
   );
 };
 
-const findOne_addOne = async (query, data) => {
-  return $post(
-    paths,
-    [{ method: "findOne_addOne", query, data, update_if_found: true }],
-    { headers }
-  ).then((res) => {
+const upsert = async (data) => {
+  return $post(paths, [{ method: "upsert", data }], {
+    headers,
+  }).then((res) => {
     try {
       if (
         res.data.length &&
@@ -63,7 +61,7 @@ const findOne_addOne = async (query, data) => {
         res.data[0].response.message || "Tạo khách hàng thất bại!"
       );
     } catch (error) {
-      console.log("findOne", error);
+      console.log("upsert", error);
       throw new Error(error.toString());
     }
   });
@@ -90,7 +88,7 @@ const addOne = async (data) => {
 
 export default {
   findOne,
-  findOne_addOne,
+  upsert,
   addOne,
   updateOne,
 };

@@ -12,16 +12,14 @@ export const bizToken = ({ required, roles = [] } = {}) => (req, res, next) => {
       const token = req.headers.authorization
 
       let biz = await getCache({ model: 'biz-public', alias: req.params.bizAlias, queryParams: { authorization: token } })
-      if (biz) {
-        biz = JSON.parse(biz);
-      } else {
+      if (!biz) {
         biz = await $get(['public', 'bizs', req.params.bizAlias], {
           headers: {
             authorization: token,
           }
         })
         await setCache({ model: 'biz-public', expire: 100, data: biz, alias: req.params.bizAlias, queryParams: { authorization: token } })
-      }
+      } 
 
       if (!biz?.data || biz?.status !== 200)
         return reject(new Error(JSON.stringify({ status: 401, message: 'Unauthorized' })))
