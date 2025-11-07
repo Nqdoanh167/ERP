@@ -32,6 +32,23 @@ const orderSchema = new Schema(
       wardCode: String,
       street: String,
       address: String,
+      sourcePlatform: [
+        {
+          id: String,
+          oid: String,
+          platform: String,
+          platformId: String,
+          platformName: String,
+          platformPicture: String,
+          name: String,
+          isSubscribe: { type: Boolean, default: false },
+        },
+      ],
+      loyaltyPoint: { type: Number, default: 0 },
+      loyalPointType: {
+        type: String,
+        enum: ["earn", "deduct", "override"],
+      },
     },
     cart: [
       {
@@ -179,7 +196,19 @@ orderSchema.methods = {
       bizId: this.bizId,
       status: this.status,
       code: this.code,
-      customer: this.customer,
+      customer: {
+        ...this.customer,
+        sourcePlatform: (this.customer.sourcePlatform || []).map((sp) => ({
+          id: sp.id,
+          oid: sp.oid,
+          platform: sp.platform,
+          platformId: sp.platformId,
+          platformName: sp.platformName,
+          platformPicture: sp.platformPicture,
+          name: sp.name,
+          isSubscribe: sp.isSubscribe,
+        })),
+      },
       cart: (this.cart || []).map((item) => ({
         id: item.id || item._id,
         product: item.product,

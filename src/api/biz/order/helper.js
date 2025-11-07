@@ -14,17 +14,16 @@ export const getCustomer = async ({ body = {}, bizId }) => {
     }
 
     if (!customer && (body.phone || body.name || body.email)) {
-      if (!body.name) body.name = body.phone;
+      const bodyCustomer = { ...body, bizId };
 
-      const queryCustomer = { bizId };
-      const bodyCustomer = { ...body };
-
-      if (body.phone) queryCustomer.phone = body.phone;
+      if (body.phone) bodyCustomer.phone = body.phone;
       // email k đúng => bỏ
       if (body.email) {
         if (!String(body.email).match(/^\S+@\S+\.\S+$/)) delete body.email;
+      }
 
-        if (body.email) queryCustomer.email = body.email;
+      if(body.sourcePlatform?.id && body.sourcePlatform?.platform && body.sourcePlatform?.platformId) {
+        delete bodyCustomer.sourcePlatform;
       }
 
       // Xóa các dữ liệu có giá trị null để tránh bị update vào customer;
@@ -32,7 +31,7 @@ export const getCustomer = async ({ body = {}, bizId }) => {
         if (bodyCustomer[f] === null) delete bodyCustomer[f];
       });
 
-      customer = await Customer.findOne_addOne(queryCustomer, {
+      customer = await Customer.upsert({
         ...bodyCustomer,
         name: bodyCustomer.name || bodyCustomer.phone,
       });
