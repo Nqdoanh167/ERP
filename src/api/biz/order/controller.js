@@ -393,33 +393,55 @@ export const getCountStatus = async (req, res, next) => {
       }
       const statuses = Object.values(ORDER_STATUS);
 
-      const total = await Order.countDocuments(query);
-      if (!total) {
-        return resolve([
-          ...statuses.map((status) => ({
-            status,
-            count: 0,
-          })),
-          {
-            status: "all",
-            count: 0,
-          },
-        ]);
-      }
-
       const summary = await Order.aggregate([
         { $match: query },
-        { $group: { _id: "$status", count: { $sum: 1 } } },
+        {
+          $facet: {
+            byStatus: [
+              {
+                $group: {
+                  _id: "$status",
+                  count: { $sum: 1 },
+                  amount: { $sum: "$totalAmount" },
+                },
+              },
+            ],
+            total: [
+              {
+                $count: "count",
+              },
+            ],
+            amount: [
+              {
+                $group: {
+                  _id: null,
+                  totalAmount: { $sum: "$totalAmount" },
+                },
+              },
+            ],
+          },
+        },
       ]);
 
+      console.log(JSON.stringify(summary, null, 2));
+
+      const byStatus = summary[0]?.byStatus || [];
+      const total = summary[0]?.total[0]?.count || 0;
+      const amount = summary[0]?.amount[0]?.totalAmount || 0;
+
       return resolve([
-        ...statuses.map((status) => ({
-          status,
-          count: summary.find((item) => item._id === status)?.count || 0,
-        })),
+        ...statuses.map((status) => {
+          const statusData = byStatus.find((s) => s._id === status);
+          return {
+            status,
+            count: statusData ? statusData.count : 0,
+            amount: statusData ? statusData.amount : 0,
+          };
+        }),
         {
           status: "all",
           count: total,
+          amount,
         },
       ]);
     } catch (error) {
