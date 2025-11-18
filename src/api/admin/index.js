@@ -1,8 +1,8 @@
-import { Router } from 'express'
-// import backdoor from './backdoor'
+import { Router } from "express";
+import order from "./order";
 
-const router = new Router()
+const router = new Router();
 
-// router.use('/backdoor', backdoor)
+router.use("/", order);
 
-export default router
+export default router;

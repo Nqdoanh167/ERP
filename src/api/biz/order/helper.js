@@ -22,7 +22,11 @@ export const getCustomer = async ({ body = {}, bizId }) => {
         if (!String(body.email).match(/^\S+@\S+\.\S+$/)) delete body.email;
       }
 
-      if(body.sourcePlatform?.id && body.sourcePlatform?.platform && body.sourcePlatform?.platformId) {
+      if (
+        body.sourcePlatform?.id &&
+        body.sourcePlatform?.platform &&
+        body.sourcePlatform?.platformId
+      ) {
         delete bodyCustomer.sourcePlatform;
       }
 
@@ -628,4 +632,55 @@ export const handleOrderData = async ({ body, biz, oldOrder = null }) => {
   }
 
   return body;
+};
+
+export const buildOrderEsQuery = (bizId, query) => {
+  try {
+    const esQuery = {
+      bool: {
+        filter: [{ term: { bizId } }],
+        must: [],
+        must_not: [],
+        should: [], // Dùng cho Branch (chi nhánh)
+      },
+    };
+
+    if (query) {
+      if (query.q) {
+        esQuery.bool.must.push({
+          multi_match: {
+            query: query.q,
+            fields: ["code", "customer.name", "customer.phone"],
+            type: "phrase_prefix",
+          },
+        });
+      }
+
+      if (query.status) {
+        if (query.status !== "all") {
+          esQuery.bool.filter.push({ term: { status: query.status } });
+        }
+      }
+
+      if (query.branch) {
+        esQuery.bool.filter.push({ term: { "branch.id": query.branch } });
+      }
+
+      const rangeQuery = {};
+      if (query.createdAt_gte) {
+        rangeQuery.gte = query.createdAt_gte;
+      }
+      if (query.createdAt_lte) {
+        rangeQuery.lte = query.createdAt_lte;
+      }
+      if (Object.keys(rangeQuery).length > 0) {
+        esQuery.bool.filter.push({ range: { createdAt: rangeQuery } });
+      }
+    }
+
+    return esQuery;
+  } catch (error) {
+    console.error("Error building ES query:", error);
+    return null;
+  }
 };

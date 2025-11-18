@@ -83,9 +83,7 @@ export const admin = ({ required, roles = ['DEV', 'MOD', 'ADMIN'] } = {}) => (re
       const dataToken = JSON.parse(Buffer.from(bufToken, 'base64').toString());
 
       let me = await getCache({ model: 'user', alias: 'me', queryParams: { authorization: dataToken.id } })
-      if (me) {
-        me = JSON.parse(me);
-      } else {
+      if (!me) {
         me = await $get(['users', 'me'], {
           headers: {
             authorization: token
@@ -97,7 +95,7 @@ export const admin = ({ required, roles = ['DEV', 'MOD', 'ADMIN'] } = {}) => (re
         return reject(new Error(JSON.stringify({ status: 401, message: 'Unauthorized' })))
 
       // Nếu k phải MOD,ADMIN thì check xem có quyền dev k mới cho update
-      if (!['ADMIN'].includes(me.data.role) && !me.data.devScopes?.includes(service))
+      if (!['ADMIN', 'DEV', 'MOD'].includes(me.data.role) && !me.data.devScopes?.includes(service))
         return reject(new Error(JSON.stringify({ status: 401, message: 'Unauthorized' })))
 
       req.viewer = me.data;

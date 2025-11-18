@@ -1,11 +1,21 @@
 import { removeServiceCache, setServiceCache } from "../../../services/cache";
 import { notFound, response } from "../../../services/response";
 import { retry } from "../../../utils/common";
-import { handleCouponChanges, handleOrderData } from "./helper";
+import {
+  buildOrderEsQuery,
+  handleCouponChanges,
+  handleOrderData,
+} from "./helper";
 import { ORDER_STATUS, ORDER_STATUS_CONFIG } from "./constants";
 import Order from "../../models/order";
 import { NotFoundError } from "../../../services/response/errors";
 import PromotionService from "../../../services/axios/promotion";
+import {
+  delOrderToElastic,
+  INDEX_ORDER,
+  syncOrderToElastic,
+} from "../../../services/elastic/order";
+import { elasticDB } from "../../../services/elastic";
 
 export const create = async (req, res, next) => {
   const {
@@ -29,7 +39,7 @@ export const create = async (req, res, next) => {
           const code = "DH" + nid.toString().padStart(5, "0");
           const uniqueCode = `${biz.id}_${code}`;
 
-          return await Order.create({
+          const newOrder = await Order.create({
             ...body,
             nid,
             code,
@@ -43,6 +53,11 @@ export const create = async (req, res, next) => {
               picture: viewer.picture,
             },
           });
+
+          // Sync to elastic
+          await syncOrderToElastic(newOrder);
+
+          return newOrder;
         })
       );
     } catch (error) {
@@ -130,18 +145,21 @@ export const update = async (req, res, next) => {
 
       await handleOrderData({ body, biz, oldOrder });
 
-      // Tạo đơn hàng
-      return resolve(
-        await Object.assign(order, {
-          ...body,
-          updatedBy: {
-            id: viewer.id,
-            name: viewer.name,
-            email: viewer.email,
-            picture: viewer.picture,
-          },
-        }).save()
-      );
+      // Cập nhật đơn hàng
+      const updatedOrder = await Object.assign(order, {
+        ...body,
+        updatedBy: {
+          id: viewer.id,
+          name: viewer.name,
+          email: viewer.email,
+          picture: viewer.picture,
+        },
+      }).save();
+
+      // Sync to elastic
+      await syncOrderToElastic(updatedOrder);
+
+      return resolve(updatedOrder);
     } catch (error) {
       return reject(
         new Error(JSON.stringify({ status: 500, message: error.toString() }))
@@ -174,6 +192,67 @@ export const index = async (req, res, next) => {
     biz,
     querymen: { query, select, cursor },
   } = req;
+
+  try {
+    if (elasticDB) {
+      const esQuery = buildOrderEsQuery(biz.id, req.query);
+      console.log(JSON.stringify(esQuery, null, 2));
+
+      if (esQuery) {
+        const bodySearch = {
+          query: esQuery,
+          from: cursor.skip ?? 0,
+          size: cursor.limit ?? 20,
+          track_total_hits: true,
+        };
+
+        const sort = [];
+        if (req.query.q) {
+          sort.push({ _score: { order: "desc" } });
+        }
+        if (cursor.sort && Object.keys(cursor.sort).length > 0) {
+          Object.entries(cursor.sort).forEach(([field, order]) => {
+            if (field !== "score") {
+              sort.push({
+                [field]: {
+                  order: order === 1 || order === "asc" ? "asc" : "desc",
+                },
+              });
+            }
+          });
+        }
+        if (sort.length > 0) {
+          bodySearch.sort = sort;
+        }
+
+        const esResult = await elasticDB.search({
+          index: INDEX_ORDER,
+          body: bodySearch,
+        });
+        const total = esResult?.hits?.total?.value ?? 0;
+
+        if (total === 0) {
+          const data = { data: [], total: 0 };
+          response(res, data);
+          setServiceCache({ req, model: "order", data });
+          return;
+        }
+
+        const orderIds = esResult.hits.hits.map((hit) => hit._id);
+        const orders = await Order.find({ _id: { $in: orderIds } });
+        const data = {
+          total,
+          data: orders.map((order) => order.view()),
+        };
+
+        response(res, data);
+        setServiceCache({ req, model: "order", data });
+        return;
+      }
+    }
+  } catch (error) {
+    console.error("Elasticsearch error, fallback to MongoDB:", error.message);
+  }
 
   query.bizId = biz.id;
   if (req.query.q) {
@@ -217,10 +296,13 @@ export const show = async (req, res, next) => {
 export const destroy = async (req, res, next) => {
   const { biz, params } = req;
   Order.findOne({ _id: params.id, bizId: biz.id })
-    .then((order) => {
+    .then(async (order) => {
       if (!order) {
         throw new NotFoundError("Đơn hàng không tồn tại");
       }
+      // Delete from elastic
+      await delOrderToElastic(order.id);
+
       return order.remove();
     })
     .then((order) => ({ data: order.view(true) }))
@@ -267,17 +349,20 @@ export const updateStatus = async (req, res, next) => {
         );
       }
 
-      return resolve(
-        await Object.assign(order, {
-          status: body.status,
-          updatedBy: {
-            id: viewer.id,
-            name: viewer.name,
-            email: viewer.email,
-            picture: viewer.picture,
-          },
-        }).save()
-      );
+      const updatedOrder = await Object.assign(order, {
+        status: body.status,
+        updatedBy: {
+          id: viewer.id,
+          name: viewer.name,
+          email: viewer.email,
+          picture: viewer.picture,
+        },
+      }).save();
+
+      // Sync to elastic
+      await syncOrderToElastic(updatedOrder);
+
+      return resolve(updatedOrder);
     } catch (error) {
       return reject(
         new Error(JSON.stringify({ status: 500, message: error.toString() }))
@@ -287,5 +372,63 @@ export const updateStatus = async (req, res, next) => {
     .then((order) => ({ data: order.view(true) }))
     .then((data) => response(res, data))
     .then(() => removeServiceCache({ req, model: "order" }))
+    .catch(next);
+};
+
+/* 
+  Thống kê đơn hàng cho từng status
+ */
+export const getCountStatus = async (req, res, next) => {
+  const {
+    biz,
+    querymen: { query },
+  } = req;
+
+  new Promise(async (resolve, reject) => {
+    try {
+      query.bizId = biz.id;
+      if (req.query.q) {
+        query.$text = { $search: req.query.q };
+        delete query.keywords;
+      }
+      const statuses = Object.values(ORDER_STATUS);
+
+      const total = await Order.countDocuments(query);
+      if (!total) {
+        return resolve([
+          ...statuses.map((status) => ({
+            status,
+            count: 0,
+          })),
+          {
+            status: "all",
+            count: 0,
+          },
+        ]);
+      }
+
+      const summary = await Order.aggregate([
+        { $match: query },
+        { $group: { _id: "$status", count: { $sum: 1 } } },
+      ]);
+
+      return resolve([
+        ...statuses.map((status) => ({
+          status,
+          count: summary.find((item) => item._id === status)?.count || 0,
+        })),
+        {
+          status: "all",
+          count: total,
+        },
+      ]);
+    } catch (error) {
+      return reject(
+        new Error(JSON.stringify({ status: 500, message: error.toString() }))
+      );
+    }
+  })
+    .then((data) => ({ data }))
+    .then((data) => response(res, data))
     .catch(next);
 };

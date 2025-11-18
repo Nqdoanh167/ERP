@@ -34,19 +34,25 @@ export const opts = {
 }
 
 // process single
-import process_CLEAR_JOB_QUEUE from '../queue/process/clearjob'
+import process_CLEAR_JOB_QUEUE from "../queue/process/clearjob";
+import process_SYNC_ELASTIC_ORDER from "../queue/process/order/sync-order";
 
 // process multithread
 
 export const configQueue = {
   // single
   CLEAR_JOB_QUEUE: {
-    queue: new Queue('CLEAR_JOB_QUEUE', opts),
+    queue: new Queue("CLEAR_JOB_QUEUE", opts),
     concurrency: 1,
-    worker: process_CLEAR_JOB_QUEUE
-  }
+    worker: process_CLEAR_JOB_QUEUE,
+  },
+  SYNC_ELASTIC_ORDER: {
+    queue: new Queue("SYNC_ELASTIC_ORDER", opts),
+    concurrency: 1,
+    worker: process_SYNC_ELASTIC_ORDER,
+  },
   // multi
-}
+};
 /**
  * @return { <name>: string }
  */
@@ -55,9 +61,10 @@ export const configQueue = {
 //   return obj
 // }, {})
 export const configQueueName = {
-  CLEAR_JOB_QUEUE: 'CLEAR_JOB_QUEUE',
-  LISTEN_SIGNAL_QUEUE: 'LISTEN_SIGNAL_QUEUE',
-}
+  CLEAR_JOB_QUEUE: "CLEAR_JOB_QUEUE",
+  LISTEN_SIGNAL_QUEUE: "LISTEN_SIGNAL_QUEUE",
+  SYNC_ELASTIC_ORDER_QUEUE: "SYNC_ELASTIC_ORDER_QUEUE",
+};
 
 export const addJob = async (name, data = {}, options = {}) => {
   if (configQueue[name]) {
