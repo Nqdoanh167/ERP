@@ -5,6 +5,7 @@ import { orderCreateModel, orderUpdateModel } from "../../models/order";
 import {
   create,
   destroy,
+  getCountStatus,
   index,
   show,
   update,
@@ -24,9 +25,23 @@ router.post(
 router.put("/:id", body(orderUpdateModel), update);
 
 router.get(
+  "/get-count-status",
+  query({
+    q: { type: String },
+    branch: {
+      type: String,
+      paths: ["branch.id"],
+    },
+    createdAt_gte: { type: Date, paths: ["createdAt"], operator: "gte" },
+    createdAt_lte: { type: Date, paths: ["createdAt"], operator: "lte" },
+  }),
+  getCountStatus
+);
+
+router.get(
   "/",
   query({
-    page: { type: Number, default: 1, max: 500 },
+    page: { type: Number, default: 1, max: 999999 },
     limit: { type: Number, default: 20, max: 999999 },
     q: { type: String },
     status: { type: String },

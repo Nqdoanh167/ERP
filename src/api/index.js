@@ -1,10 +1,11 @@
 import { Router } from "express";
 // import apiAdmin from './admin'
 import apiBackdoor from "./backdoor";
-import { token, backdoor, bizToken } from "../services/passport";
+import { token, backdoor, bizToken, admin } from "../services/passport";
 import { service } from "../config";
 import apiBiz from "./biz";
 import apiPartner from "./partner";
+import apiAdmin from "./admin";
 
 const router = new Router();
 
@@ -17,5 +18,7 @@ router.use(
   bizToken({ required: true }),
   apiPartner
 );
+
+router.use(`/admin/${service}`,admin({ required: true }), apiAdmin);
 
 export default router;
