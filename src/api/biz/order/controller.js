@@ -239,7 +239,9 @@ export const index = async (req, res, next) => {
         }
 
         const orderIds = esResult.hits.hits.map((hit) => hit._id);
-        const orders = await Order.find({ _id: { $in: orderIds } });
+        const orders = await Order.find({
+          _id: { $in: orderIds },
+        }).sort({ createdAt: -1 });
         const data = {
           total,
           data: orders.map((order) => order.view()),
@@ -386,6 +388,85 @@ export const getCountStatus = async (req, res, next) => {
 
   new Promise(async (resolve, reject) => {
     try {
+      if (elasticDB) {
+        const esQuery = buildOrderEsQuery(biz.id, req.query);
+
+        if (esQuery) {
+          try {
+            const aggregationQuery = {
+              size: 0,
+              query: esQuery,
+              aggs: {
+                byStatus: {
+                  terms: {
+                    field: "status",
+                  },
+                  aggs: {
+                    totalAmount: {
+                      sum: {
+                        field: "totalAmount",
+                      },
+                    },
+                  },
+                },
+                totalCount: {
+                  value_count: {
+                    field: "id",
+                  },
+                },
+                totalAmount: {
+                  sum: {
+                    field: "totalAmount",
+                  },
+                },
+              },
+            };
+
+            const esResult = await elasticDB.search({
+              index: INDEX_ORDER,
+              body: aggregationQuery,
+            });
+
+            console.log(JSON.stringify(esResult, null, 2));
+
+            const aggregations = esResult?.aggregations;
+            if (aggregations) {
+              const byStatusBuckets = aggregations.byStatus?.buckets || [];
+              const total = aggregations.totalCount?.value || 0;
+              const amount = aggregations.totalAmount?.value || 0;
+
+              const statuses = Object.values(ORDER_STATUS);
+
+              return resolve([
+                ...statuses.map((status) => {
+                  const statusBucket = byStatusBuckets.find(
+                    (s) => s.key === status
+                  );
+                  return {
+                    status,
+                    count: statusBucket ? statusBucket.doc_count : 0,
+                    amount: statusBucket
+                      ? statusBucket.totalAmount?.value || 0
+                      : 0,
+                  };
+                }),
+                {
+                  status: "all",
+                  count: total,
+                  amount,
+                },
+              ]);
+            }
+          } catch (esError) {
+            console.error(
+              "Elasticsearch aggregation error, fallback to MongoDB:",
+              esError.message
+            );
+          }
+        }
+      }
+
+      // Fallback to MongoDB aggregation
       query.bizId = biz.id;
       if (req.query.q) {
         query.$text = { $search: req.query.q };
