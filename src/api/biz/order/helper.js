@@ -2,9 +2,10 @@ import Customer from "../../../services/axios/customer";
 import Location from "../../../services/axios/location";
 import Product from "../../../services/axios/product";
 import { isEmptyArray } from "../../../utils/type-check";
-import { ORDER_TYPE, PROMOTION_TYPE } from "./constants";
+import { ORDER_STATUS, ORDER_TYPE, PROMOTION_TYPE } from "./constants";
 import PromotionService from "../../../services/axios/promotion";
 import { cleanObjectBodymen } from "../../../utils/common";
+import LoyaltyService from "../../../services/axios/loyalty";
 
 export const getCustomer = async ({ body = {}, bizId }) => {
   let customer = null;
@@ -682,5 +683,22 @@ export const buildOrderEsQuery = (bizId, query) => {
   } catch (error) {
     console.error("Error building ES query:", error);
     return null;
+  }
+};
+
+export const changeOrder = async ({ order = {}, oldOrder = {}, bizId }) => {
+  try {
+    if (order.status !== oldOrder.status) {
+      if (order.status === ORDER_STATUS.COMPLETED) {
+        await LoyaltyService.addOneOrderPointTransaction({
+          bizId,
+          orderId: order.id || order?._id,
+        });
+
+        console.log("addOneOrderPointTransaction success");
+      }
+    }
+  } catch (error) {
+    console.error("Error changing order:", error);
   }
 };

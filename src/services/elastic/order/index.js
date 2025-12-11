@@ -314,7 +314,10 @@ export const syncOrderToElastic = async (order) => {
       console.log("Sync order to elastic result", result);
     }
   } catch (error) {
-    console.log("Sync order to elastic error", error);
+    console.log(
+      "Sync order to elastic error",
+      JSON.stringify(error?.meta?.body, null, 2)
+    );
   }
 };
 

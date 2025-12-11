@@ -3,6 +3,7 @@ import { notFound, response } from "../../../services/response";
 import { retry } from "../../../utils/common";
 import {
   buildOrderEsQuery,
+  changeOrder,
   handleCouponChanges,
   handleOrderData,
 } from "./helper";
@@ -81,6 +82,8 @@ export const create = async (req, res, next) => {
           });
         }
       }
+
+      await changeOrder({ order: data.data, bizId: biz.id });
     })
     .then(() => removeServiceCache({ req, model: "order" }))
     .catch(next);
@@ -182,6 +185,8 @@ export const update = async (req, res, next) => {
         },
         customerId: data.data.customer?.id,
       });
+
+      await changeOrder({ order: data.data, oldOrder, bizId: biz.id });
     })
     .then(() => removeServiceCache({ req, model: "order" }))
     .catch(next);
@@ -319,7 +324,7 @@ export const updateStatus = async (req, res, next) => {
     viewer,
     bodymen: { body },
   } = req;
-
+  let oldOrder = null;
   new Promise(async (resolve, reject) => {
     try {
       const order = await Order.findOne({
@@ -337,6 +342,8 @@ export const updateStatus = async (req, res, next) => {
           )
         );
       }
+
+      oldOrder = JSON.parse(JSON.stringify(order.view(true)));
 
       // Check trạng thái đơn hàng
       const statusConfig = ORDER_STATUS_CONFIG[order.status] || {};
@@ -373,6 +380,9 @@ export const updateStatus = async (req, res, next) => {
   })
     .then((order) => ({ data: order.view(true) }))
     .then((data) => response(res, data))
+    .then(async (data) => {
+      await changeOrder({ order: data.data, oldOrder, bizId: biz.id });
+    })
     .then(() => removeServiceCache({ req, model: "order" }))
     .catch(next);
 };
