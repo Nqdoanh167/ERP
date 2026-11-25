@@ -165,6 +165,10 @@ const orderSchema = new Schema(
     amountDiscount: { type: Number, default: 0, min: 0 }, // Tổng tiền giảm tự nhập
     totalDiscount: { type: Number, default: 0, min: 0 }, // Tổng tiền giảm giá
     note: String,
+    flashSale: {
+      id: String, // FlashSale id
+      reservationId: String, // Mỗi suất giữ chỉ sinh tối đa 1 đơn
+    },
   },
   {
     timestamps: true,
@@ -178,12 +182,20 @@ const orderSchema = new Schema(
 );
 // Indexes
 orderSchema.index({ bizId: 1, status: 1, createdAt: -1 });
+orderSchema.index({ bizId: 1, nid: -1 }); // createOrderWithCode lấy nid lớn nhất
 orderSchema.index({
   bizId: 1,
   code: "text",
   "customer.name": "text",
   "customer.phone": "text",
 });
+orderSchema.index(
+  { "flashSale.reservationId": 1 },
+  {
+    unique: true,
+    partialFilterExpression: { "flashSale.reservationId": { $exists: true } },
+  }
+);
 
 orderSchema.methods = {
   view(full) {
@@ -239,6 +251,7 @@ orderSchema.methods = {
       amountDiscount: this.amountDiscount,
       totalDiscount: this.totalDiscount,
       note: this.note,
+      flashSale: this.flashSale,
       createdAt: this.createdAt,
       updatedAt: this.updatedAt,
       updatedBy: this.updatedBy,

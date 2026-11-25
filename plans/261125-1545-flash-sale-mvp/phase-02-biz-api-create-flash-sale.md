@@ -1,6 +1,6 @@
 # Phase 02 — Biz API tạo flash-sale + warm-up
 
-**Priority:** cao | **Status:** pending | **Depends:** 01
+**Priority:** cao | **Status:** done | **Depends:** 01
 
 ## Files
 - Tạo: `src/api/biz/flash-sale/index.js`, `src/api/biz/flash-sale/controller.js`
@@ -26,8 +26,8 @@ response(res, { data: { ...sale.view(true), stock: Number(stock ?? 0) } });
 ```
 
 ## Todo
-- [ ] Router + controller theo style `src/api/biz/order`
-- [ ] Mount route trước order router
+- [x] Router + controller theo style `src/api/biz/order`
+- [x] Mount route trước order router
 
 ## Success
 - Tạo sale → Redis có `fs:{id}:stock` = quantity và `fs:{id}:meta`.

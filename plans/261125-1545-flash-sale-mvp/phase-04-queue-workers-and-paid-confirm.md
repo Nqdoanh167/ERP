@@ -1,6 +1,6 @@
 # Phase 04 — Workers tạo đơn / hết hạn + xác nhận thanh toán
 
-**Priority:** cao | **Status:** pending | **Depends:** 01, 03
+**Priority:** cao | **Status:** done | **Depends:** 01, 03
 
 ## Files
 - Tạo: `src/services/queue/process/flash-sale/create-order.js`
@@ -98,9 +98,9 @@ Hệ thống hiện chưa có luồng set `isPaid`, nên MVP dùng endpoint này
 **Case cần biết:** thanh toán chốt trước khi worker kịp tạo đơn → `confirmSlot` xoá resv → worker thấy `holding = false` và bỏ qua → **mất đơn**. Xử lý: endpoint `paid` trả 409 nếu đơn chưa tồn tại (`Order.exists` trước `confirmSlot`), client chỉ cho thanh toán khi status = `CREATED`.
 
 ## Todo
-- [ ] `createOrderWithCode` trong helper (biz/partner controller có thể chuyển sang dùng sau, không bắt buộc)
-- [ ] 2 worker + đăng ký bull.js
-- [ ] Endpoint `paid` (check đơn tồn tại trước khi `confirmSlot`)
+- [x] `createOrderWithCode` trong helper (biz/partner controller có thể chuyển sang dùng sau, không bắt buộc)
+- [x] 2 worker + đăng ký bull.js
+- [x] Endpoint `paid` (check đơn tồn tại trước khi `confirmSlot`)
 
 ## Success
 - Không thanh toán sau `holdMinutes` → đơn `cancelled`, stock Redis +qty, SĐT mua lại được.

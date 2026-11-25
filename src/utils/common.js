@@ -131,3 +131,12 @@ export async function retry(fn, retries = 3, delay = 1000) {
 
   throw lastError;
 }
+
+/**
+ * Chuẩn hoá SĐT làm key (vd limit flash-sale): "+84 912-345-678" → "0912345678".
+ * Trả về null nếu không phải SĐT hợp lệ.
+ */
+export const normalizePhone = (phone) => {
+  const normalized = formatPhoneNumber(String(phone || ""));
+  return /^0\d{8,10}$/.test(normalized) ? normalized : null;
+};

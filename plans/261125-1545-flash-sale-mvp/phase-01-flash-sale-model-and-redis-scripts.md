@@ -1,6 +1,6 @@
 # Phase 01 — Model + Redis Lua
 
-**Priority:** cao | **Status:** pending
+**Priority:** cao | **Status:** done
 
 ## Files
 - Tạo: `src/api/models/flashSale.js`
@@ -123,10 +123,10 @@ export const warmUpFlashSale = async (sale) => {
 ```
 
 ## Todo
-- [ ] Model FlashSale + `flashSaleCreateModel`
-- [ ] Order: field `flashSale`, partial unique index, `view()`
-- [ ] `flash-sale-scripts.js`
-- [ ] Kiểm tra version Redis ≥ 5
+- [x] Model FlashSale + `flashSaleCreateModel`
+- [x] Order: field `flashSale`, partial unique index, `view()`
+- [x] `flash-sale-scripts.js`
+- [x] Kiểm tra version Redis ≥ 5
 
 ## Success
 - `reserveSlot` gọi 200 lần song song với stock=100 → đúng 100 kết quả ≥ 0.

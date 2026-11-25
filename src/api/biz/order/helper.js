@@ -4,8 +4,9 @@ import Product from "../../../services/axios/product";
 import { isEmptyArray } from "../../../utils/type-check";
 import { ORDER_STATUS, ORDER_TYPE, PROMOTION_TYPE } from "./constants";
 import PromotionService from "../../../services/axios/promotion";
-import { cleanObjectBodymen } from "../../../utils/common";
+import { cleanObjectBodymen, retry } from "../../../utils/common";
 import LoyaltyService from "../../../services/axios/loyalty";
+import Order from "../../models/order";
 
 export const getCustomer = async ({ body = {}, bizId }) => {
   let customer = null;
@@ -702,3 +703,26 @@ export const changeOrder = async ({ order = {}, oldOrder = {}, bizId }) => {
     console.error("Error changing order:", error);
   }
 };
+
+/**
+ * Tạo đơn với mã DHxxxxx tăng dần theo biz.
+ * Sinh `nid` = max + 1 nên race khi chạy song song → dựa vào uniqueCode unique + retry.
+ */
+export const createOrderWithCode = ({ bizId, body, author, updatedBy }) =>
+  retry(async () => {
+    const lastOrder = await Order.findOne({ bizId }).sort({ nid: -1 });
+
+    const nid = (lastOrder?.nid || 0) + 1;
+    const code = "DH" + nid.toString().padStart(5, "0");
+    const uniqueCode = `${bizId}_${code}`;
+
+    return Order.create({
+      ...body,
+      nid,
+      code,
+      uniqueCode,
+      bizId,
+      author,
+      updatedBy,
+    });
+  });

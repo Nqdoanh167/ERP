@@ -1,6 +1,8 @@
-# Phase 03 — Public API mua + xem trạng thái
+# Phase 03 — Biz API mua + xem trạng thái
 
-**Priority:** cao | **Status:** pending | **Depends:** 01, 02
+> **Cập nhật 2026-11-25:** bỏ partner/public API. `buy` + `reservationStatus` nằm ở `src/api/biz/flash-sale/reservation-controller.js`, route `/bizs/:bizAlias/{service}/flash-sales` (`token`).
+
+**Priority:** cao | **Status:** done | **Depends:** 01, 02
 
 ## Files
 - Tạo: `src/api/partner/flash-sale/index.js`, `src/api/partner/flash-sale/controller.js`
@@ -68,9 +70,9 @@ return response(res, { data: { status: holding ? "PROCESSING" : "EXPIRED" } });
 ```
 
 ## Todo
-- [ ] `normalizePhone` trong `src/utils/common.js` (nếu chưa có)
-- [ ] Router + controller
-- [ ] Mount trước order router
+- [x] `normalizePhone` trong `src/utils/common.js` (nếu chưa có)
+- [x] Router + controller
+- [x] Mount trước order router
 
 ## Success
 - Hết suất → 409, không tạo ManageQueue doc nào.

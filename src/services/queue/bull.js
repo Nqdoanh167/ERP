@@ -36,6 +36,8 @@ export const opts = {
 // process single
 import process_CLEAR_JOB_QUEUE from "../queue/process/clearjob";
 import process_SYNC_ELASTIC_ORDER from "../queue/process/order/sync-order";
+import process_FLASH_SALE_CREATE_ORDER from "../queue/process/flash-sale/create-order";
+import process_FLASH_SALE_EXPIRE from "../queue/process/flash-sale/expire-reservation";
 
 // process multithread
 
@@ -51,6 +53,16 @@ export const configQueue = {
     concurrency: 1,
     worker: process_SYNC_ELASTIC_ORDER,
   },
+  FLASH_SALE_CREATE_ORDER: {
+    queue: new Queue("FLASH_SALE_CREATE_ORDER", opts),
+    concurrency: 1, // sinh nid hiện tại race khi chạy song song
+    worker: process_FLASH_SALE_CREATE_ORDER,
+  },
+  FLASH_SALE_EXPIRE: {
+    queue: new Queue("FLASH_SALE_EXPIRE", opts),
+    concurrency: 1,
+    worker: process_FLASH_SALE_EXPIRE,
+  },
   // multi
 };
 /**
@@ -64,6 +76,8 @@ export const configQueueName = {
   CLEAR_JOB_QUEUE: "CLEAR_JOB_QUEUE",
   LISTEN_SIGNAL_QUEUE: "LISTEN_SIGNAL_QUEUE",
   SYNC_ELASTIC_ORDER_QUEUE: "SYNC_ELASTIC_ORDER_QUEUE",
+  FLASH_SALE_CREATE_ORDER: "FLASH_SALE_CREATE_ORDER",
+  FLASH_SALE_EXPIRE: "FLASH_SALE_EXPIRE",
 };
 
 export const addJob = async (name, data = {}, options = {}) => {
